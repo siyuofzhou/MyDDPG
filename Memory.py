@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import os
+from Parameter import P
 
 class Memory:
     def __init__(self):
-        self.upline = 1000000
+        self.upline = P['memory_upline']
         self.index = 0
         self.index_arr = np.random.randint(0,high=self.upline,size=self.upline)
-        self.__save_path = '.\\memory_v2'
+        self.__save_path = P['memory_save_path']
         if os.path.isfile(self.__save_path+'.npz'):
             p = np.load(self.__save_path+'.npz')
             print ('load '+self.__save_path+'.npz')
             self.__data = p['data']
             self.data_size = p['size'][0]
         else:
-            self.__data = np.zeros((1000000,53))
+            self.__data = np.zeros((self.upline,53))
             self.data_size  = 0
             
     def __next_index(self):

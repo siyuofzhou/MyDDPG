@@ -8,18 +8,18 @@ import numpy as np
 from UONoise import UONoise
 import time 
 from walker import BipedalWalker,BipedalWalkerHardcore
+from Parameter import P
 
 class Train:
-    
     def __init__(self):
-        self.batch_size = 64
-        self.train_one_eps = 20
-        self.train_all_eps = 100000
-        self.memory_updata_size = self.batch_size*20
+        self.batch_size = P['batch_size']
+        self.train_one_eps = P['train_one_eps']
+        self.train_all_eps = P['train_all_eps']
+        self.memory_updata_size = P['memory_updata_size']
         tf.reset_default_graph()
-        self.network = JointNetWork(24,4)
+        self.network = JointNetWork_V2(24,4)
         self.sess = tf.Session()
-        self.writer = tf.summary.FileWriter('.\\log_v2',self.sess.graph)
+        self.writer = tf.summary.FileWriter(P['TF_Log'],self.sess.graph)
         self.network.restore(self.sess)
         self.sess.graph.finalize()
         self.memory = Memory()
@@ -66,41 +66,52 @@ class Train:
                                 self.network.action:np.zeros([self.batch_size,4]),
                                 self.network.bn_training:False
                             })
-        #print('online_action: ',action)
-        return self.UO_noise(action[0]) 
+        if P['mode'] == 0:
+            print(u'\r online_action: {}                        '.format(action),end='')
+            return self.UO_noise(action[0]) 
+        return action[0]
     
-    def memory_updata(self,show=False):
+    def memory_updata(self):
         state = self.env.reset()
-        #print(state)
         cont = 0
         total_reward = 0
         nums = 0
         while cont < self.memory_updata_size:
             state = np.expand_dims(np.array(state,dtype=np.float32),0)
-            #print('state :',state)
             action = self.__action(state)
-            #print('OU_action :',action)
             assert action.shape == (4,)
             
             next_state,R,done,inf = self.env.step(action)
-            if R <= -99.999:R = -1.0
             total_reward += R
-            if show:
-                self.env.render()
-                print('total reward:{:.2f}  R:{:.2f}'.format(total_reward,R))
-                print('action : ',action)
             self.memory.push(state[0],action,R,next_state)
             state = next_state
             cont += 1
             if done:
-                if show:
-                    self.env.close()
-                    break
+                #self.env.seed(3130)
                 state = self.env.reset()
                 nums += 1
         if nums == 0:nums = 1
         return total_reward/nums
+    
+    def check(self,show=True):
+        state = self.env.reset()
+        total_reward = 0
+        while True:
+            state = np.expand_dims(np.array(state,dtype=np.float32),0)
+            action = self.__action(state)
+            assert action.shape == (4,)
             
+            next_state,R,done,inf = self.env.step(action)
+            total_reward += R
+            if show:
+                self.env.render()
+            state = next_state
+            if done:
+                if show:
+                    self.env.close()
+                break
+        return total_reward
+    
     def train(self):
         up_cont = 10
         rewards = np.zeros([up_cont])
@@ -118,10 +129,26 @@ class Train:
                 self.memory.save()
             cont+=1
         
-    def test(self):
-        self.memory_updata(show = True)
+    def test(self,times = 100):
+        MinR = 10000
+        Minseed = 0 
+        for i in range(times):
+            seed = np.random.randint(1,high=10000)
+            #seed = 3130
+            self.env.seed(seed = seed)
+            print(seed)
+            reward = self.check(show=True)
+            print('reward:{} seed:{} '.format(reward,seed))
+            if reward < MinR:
+                MinR = reward
+                Minseed = seed
+        print('minreward:{} minseed:{}'.format(MinR,Minseed))
 
 if __name__ == '__main__':
     train = Train()
-    train.train()
-    #train.test()
+    if P['mode'] == 0:
+        train.train()
+    else:
+        train.test()
+#minreward:12.21449920929181 minseed:5090
+#minreward:5.478706493673222 minseed:3130
